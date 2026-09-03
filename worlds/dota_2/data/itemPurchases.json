@@ -1,0 +1,45 @@
+{
+  "purchase_locations" :[
+    {
+      "id": 1,
+      "name": "Iron Branch"
+    
+    },
+    {
+      "id": 2,
+      "name": "Tango"
+    },
+    {
+      "id": 3,
+      "name": "Sentry Ward"
+    },
+    {
+      "id": 4,
+      "name": "Observer Ward"
+    },
+    {
+      "id": 5,
+      "name": "Mango"
+    },
+    {
+      "id": 6,
+      "name": "Boots of Speed"
+    },
+    {
+      "id": 7,
+      "name": "Quelling Blade"
+    },
+    {
+      "id": 8,
+      "name": "Bottle"
+    },
+    {
+      "id": 10,
+      "name": "Blood Grenade"
+    },
+    {
+      "id": 11,
+      "name": "Goal"
+    }
+    ]
+}
