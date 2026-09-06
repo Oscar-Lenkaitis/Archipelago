@@ -18,7 +18,7 @@ VICTORY_ITEM_NAME = "Victory"
 FILLER_ITEM_NAME = "Primordial Fragment"
 
 class DOTA2Item(Item):
-    game = "DOTA2"
+    game = "DOTA 2"
 
     @property
     def excludable(self) -> bool:  # type: ignore[override]
@@ -101,7 +101,7 @@ def build_item_name_to_id(base_id: int, item_defs: list[ItemDef]) -> dict[str, i
 # }
 
 # class DOTA2Item(Item):
-#     game = "DOTA2"
+#     game = "DOTA 2"
 
 # def get_random_filler_item_name(world: DOTA2World) -> str:
 #     # APQuest has an option called "trap_chance".

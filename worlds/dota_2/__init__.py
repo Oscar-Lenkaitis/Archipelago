@@ -20,7 +20,7 @@ from .regions import create_regions_and_locations
 class DOTA2WebWorld(WebWorld):
     # We need to override the "game" field of the WebWorld superclass.
     # This must be the same string as the regular World class.
-    game = "DOTA2"
+    game = "DOTA 2"
 
     # Your game pages will have a visual theme (affecting e.g. the background image).
     # You can choose between dirt, grass, grassFlowers, ice, jungle, ocean, partyTime, and stone.
@@ -46,7 +46,7 @@ class DOTA2WebWorld(WebWorld):
 
 
 class DOTA2World(World):
-    game = "DOTA2"
+    game = "DOTA 2"
     web = DOTA2WebWorld()
       # This is how we associate the options defined in our options.py with our world.
     options_dataclass = DOTA2Options
@@ -118,11 +118,11 @@ class DOTA2World(World):
         (those checks may contain primordial fragments). Matches what we send in slot_data.
         """
         max_sp = self._max_primordial_fragments_placeable()
-        v = min(self.options.primordial_fragments_to_unlock_final, max_sp)
+        v = min(self.options.primordial_fragments_to_unlock_final.value, max_sp)
         #no game/check options right now
         # if self.options.game_mode == GameMode.option_street_brawl:
         #     v = min(v, 143)
-        if self.options.goal_type == GoalType.option_win_with_character:
+        if self.options.goal_type.value == GoalType.option_win_with_character:
             v = min(v, max(1, max_sp - 1))
         return max(1, v)
 
@@ -145,7 +145,7 @@ class DOTA2World(World):
         # Max fragmetns = number of check locations (pool size); Goal has locked Victory so pool size is locations - 1
         max_primordial_fragments = self._max_primordial_fragments_placeable()
         primordial_fragments_to_win = min(self.options.primordial_fragments_to_win.value, max_primordial_fragments)
-        primordial_fragments_to_unlock_final = self._effective_primordial_fragments_unlock_final()
+        primordial_fragments_to_unlock_final = self._effective_primordial_fragments_to_unlock_final()
         final_character_index = self.options.final_character.value
         final_character_name = _FINAL_CHARACTER_NAMES[final_character_index] if final_character_index < len(_FINAL_CHARACTER_NAMES) else ""
         return {

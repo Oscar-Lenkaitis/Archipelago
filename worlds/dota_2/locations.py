@@ -24,7 +24,7 @@ class LocationDef:
 
 
 class DOTA2Location(Location):
-    game = "DOTA2"
+    game = "DOTA 2"
 
 
 def load_hero_locations() -> List[LocationDef]:

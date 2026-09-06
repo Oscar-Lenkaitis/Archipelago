@@ -12,7 +12,7 @@ from worlds.dota_2 import DOTA2World
 # It also enables you to write custom tests with a slew of generic helper functions.
 # The first thing you'll want to do is subclass it. You'll want to override "game" And "world" like this.
 class Dota2TestBase(WorldTestBase):
-    game = "DOTA2"
+    game = "DOTA 2"
     world = DOTA2World
 
 
