@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Optional, Any
 from datetime import datetime
 
+from .dota_api import parse_most_recent_match_data
 
 from CommonClient import CommonContext, gui_enabled, server_loop, console_loop, ClientCommandProcessor
 
@@ -21,9 +22,14 @@ class Dota2CommandProcessor(ClientCommandProcessor):
         """Show your goal and how far you are from completing it."""
         self.ctx.cmd_goal()
 
-    def _cmd_set_player_id(self, steamid3: str = "") -> None:
-        """Set your SteamID. /set_player_id 123456789"""
-        self.ctx.cmd_set_player_id([steamid3] if steamid3 else [])
+    def _cmd_set_player_id(self, steamid32bit: str = "") -> None:
+        """Set your SteamID (32bit). /set_player_id 123456789"""
+        self.ctx.cmd_set_player_id([steamid32bit] if steamid32bit else [])
+
+    def _cmd_parse_recent_match(self) -> None:
+        """try to parse the most recent match completed"""
+        self.ctx.output("DEBUG: /parse_recent_match command received")
+        asyncio.create_task(self.ctx.cmd_parse_recent_match_data())
 
 try:
     from Utils import async_start
@@ -56,7 +62,7 @@ class Dota2Save:
     # Anti-duplicate
     submitted_match_ids: list[str] = None
 
-    most_recent_game_time: int
+    most_recent_game_time: int = 0
 
     def __post_init__(self) -> None:
         if self.submitted_match_ids is None:
@@ -69,9 +75,9 @@ class Dota2Save:
 def _get_save_dir() -> Path:
     try:
         from Utils import user_path  # type: ignore
-        return Path(user_path("saves", "deadlock"))
+        return Path(user_path("saves", "dota2"))
     except Exception:
-        return Path(".") / "deadlock_saves"
+        return Path(".") / "dota2_saves"
 
 
 def _safe_filename(s: str) -> str:
@@ -93,7 +99,7 @@ def _get_goal_options(slot_data: dict) -> tuple[int, int, int, int, int, str]:
     raw_goal = slot_data.get("goal_type", GOAL_UNIQUE_CHARACTERS)
     if raw_goal in (1, "1", "total_wins"):
         goal_type = GOAL_TOTAL_WINS
-    elif raw_goal in (2, "2", " fragments"):
+    elif raw_goal in (2, "2", "fragments"):
         goal_type = GOAL_PRIMORDIAL_FRAGMENTS
     elif raw_goal in (3, "3", "win_with_character"):
         goal_type = GOAL_WIN_WITH_CHARACTER
@@ -202,7 +208,11 @@ class Dota2Context(CommonContext):
         # load offline save immediately so /stats and /set_player_id work before connect
         self.ensure_seed_save_loaded()
         
-
+        # ---------- connection state ----------
+    def is_connected(self) -> bool:
+        # CommonContext sets .server when websocket is connected; slot is set after auth.
+        return bool(getattr(self, "server", None)) and bool(getattr(self, "slot", None))
+    
     async def server_auth(self, password_requested: bool = False) -> None:
         """After RoomInfo, get slot name (if needed) and send Connect packet so the server joins us to the room."""
         if password_requested and not self.password:
@@ -357,6 +367,15 @@ class Dota2Context(CommonContext):
         self.save_save()
         self.output(f"SteamID set to {args[0].strip()} (saved locally).")
 
+    async def cmd_parse_recent_match_data(self) -> None:
+        if not self.is_connected():
+            self.output("Not connected. Connect to an Archipelago server to see your goal.")
+            return
+        self.ensure_seed_save_loaded()
+        self.output(f"DEBUG: attemnpting parse method")
+        match_data = await parse_most_recent_match_data(int(self.save.steamid))
+        match_id = match_data.match_id
+
 
 async def _main() -> None:
     ctx = Dota2Context()
@@ -372,5 +391,5 @@ async def _main() -> None:
         await server_loop(ctx)
 
 
-def run_deadlock_client(*args: str) -> None:
+def run_dota2_client(*args: str) -> None:
     asyncio.run(_main())

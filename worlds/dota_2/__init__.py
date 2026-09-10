@@ -226,4 +226,40 @@ class DOTA2World(World):
     #         "hard_mode", "hammer", "extra_starting_chest", "confetti_explosiveness", "player_sprite"
     #     )
 
-__all__ = ["DOTA2World"]
+def _launch_dota2_client(*args: str) -> None:
+    from worlds import LauncherComponents
+    from .Client import run_dota2_client
+    LauncherComponents.launch(run_dota2_client, name="DOTA 2 Client", args=args)
+
+def _register_dota2_icon() -> str:
+    """
+    Register our icon with LauncherComponents using the apworld format so the launcher
+    loads it from inside the apworld (no cache folder or filesystem extraction needed).
+    See: LauncherComponents.py comment re "ap:module.name/path/to/file.png"
+    """
+    try:
+        from worlds import LauncherComponents
+    except ImportError:
+        return "icon"  # fallback to default
+
+    icon_key = "dota2"
+    if icon_key not in LauncherComponents.icon_paths:
+        LauncherComponents.icon_paths[icon_key] = f"ap:{__name__}/icons/Dota2.png"
+    return icon_key
+
+def _register_launcher_component() -> None:
+    try:
+        from worlds.LauncherComponents import Component, components
+    except ImportError:
+        return
+
+    components.append(Component(
+        display_name="Dota 2 Client",
+        func=_launch_dota2_client,
+        game_name="Dota 2",
+        supports_uri=True,
+        description="DOTA 2 Archipelago client.",
+        icon=_register_dota2_icon(),
+    ))
+
+_register_launcher_component()
