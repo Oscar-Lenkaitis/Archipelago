@@ -35,7 +35,6 @@ def get_most_recent_match_id(steamID):
 async def request_match_parse(steamID):
     match_id = get_most_recent_match_id(steamID)
 
-
     result = OPEN_DOTA.request_parse(match_id)
 
     job_id = result['job']["jobId"]

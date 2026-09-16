@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import typing
-from typing import Any, Mapping, List
+from typing import Any, Mapping, List, Dict
 
 from BaseClasses import Region, ItemClassification
 from worlds.AutoWorld import World, WebWorld
@@ -12,10 +12,11 @@ from worlds.AutoWorld import World, WebWorld
 
 # Imports of your world's files must be relative.
 from .options import (DOTA2Options, GoalType, _FINAL_CHARACTER_NAMES,)
-from .items import DOTA2Item, load_hero_unlock_items, build_item_name_to_id, FILLER_ITEM_NAME, VICTORY_ITEM_NAME
-from .locations import DOTA2Location, LocationDef, load_hero_locations, build_location_name_to_id, load_item_locations
+from .items import DOTA2Item, ItemDef, load_hero_unlock_items, build_item_name_to_id, FILLER_ITEM_NAME
+from .locations import DOTA2Location, LocationDef, load_hero_locations, build_location_name_to_id, load_item_locations, load_game_stat_locations
 from .rules import set_dota_rules
 from .regions import create_regions_and_locations
+from .hero import Hero, get_starting_hero_pool, get_all_heroes
 # For our game to display correctly on the website, we need to define a WebWorld subclass.
 class DOTA2WebWorld(WebWorld):
     # We need to override the "game" field of the WebWorld superclass.
@@ -52,30 +53,27 @@ class DOTA2World(World):
     options_dataclass = DOTA2Options
     options: DOTA2Options  # Common mistake: This has to be a colon (:), not an equals sign (=).
 
+    starting_hero_pool: list[Hero] = []
+    hero_groups: list[list[Hero]] = []
+    unlocked_heroes: list[Hero]
 
     # Choose a stable, unique base_id range for your world.
     base_id = 770_1540
 
-     # These are populated at import time from JSON.
-    _item_defs = load_hero_unlock_items()
-
     _location_defs: List[LocationDef] = []
-    _location_defs.extend(load_hero_locations())
-    _location_defs.extend(load_item_locations())
 
-    item_name_to_id = build_item_name_to_id(base_id, _item_defs)
-    # location_name_to_id is set per-instance in generate_early from filtered defs (see below).
-    location_name_to_id = build_location_name_to_id(base_id + 10_000, _location_defs)
+    _item_defs: List[ItemDef] = []
+
+    item_name_to_id: Dict[str, int] = {}
+
+    location_name_to_id: Dict[str, int] = {}
+
 
 
     def create_item(self, name: str) -> DOTA2Item:
         # Determine classification from defs or fallback for special items.
         if name == FILLER_ITEM_NAME:
-            # Primordial Fragments (MacGuffin) use filler classification in defs; DeadlockItem.excludable
-            # is overridden so they are never placed on excluded locations.
             classification = ItemClassification.filler
-        elif name == VICTORY_ITEM_NAME:
-            classification = ItemClassification.progression
         else:
             d = next((x for x in self._item_defs if x.name == name), None)
             if d is None:
@@ -90,12 +88,17 @@ class DOTA2World(World):
 
     def generate_early(self) -> None:
 
-        #no current game mode option
-        #mode = self._game_mode_value()
-       
-        # def mode_ok(d: LocationDef) -> bool:
-        #     m = getattr(d, "game_mode", "") or ""
-        #     return m == "" or m == mode
+        self._location_defs.extend(load_hero_locations(self))
+        self._location_defs.extend(load_item_locations())
+        self._location_defs.extend(load_game_stat_locations())
+
+        self._item_defs.extend(load_hero_unlock_items(self))
+
+        self.item_name_to_id = build_item_name_to_id(self.base_id, self._item_defs)
+        # location_name_to_id is set per-instance in generate_early from filtered defs (see below).
+        self.location_name_to_id = build_location_name_to_id(self.base_id + 10_000, self._location_defs)
+        
+        
         def item_type_valid(d: LocationDef) -> bool:
             return d.type == "HERO_WIN" or d.type ==  "ITEM_BUY" or d.type ==  "GAME_STAT" or d.type ==  "GOAL"
     
@@ -113,15 +116,11 @@ class DOTA2World(World):
 
     def _effective_primordial_fragments_to_unlock_final(self) -> int:
         """
-        primordial fragments required before final character counts as unlocked (Win with Character).
-        Capped so the threshold is reachable before opening that hero's win checks
-        (those checks may contain primordial fragments). Matches what we send in slot_data.
+        primordial fragments required before being able to release. Matches what we send in slot_data.
         """
         max_sp = self._max_primordial_fragments_placeable()
         v = min(self.options.primordial_fragments_to_unlock_final.value, max_sp)
-        #no game/check options right now
-        # if self.options.game_mode == GameMode.option_street_brawl:
-        #     v = min(v, 143)
+    
         if self.options.goal_type.value == GoalType.option_win_with_character:
             v = min(v, max(1, max_sp - 1))
         return max(1, v)
@@ -132,7 +131,8 @@ class DOTA2World(World):
             return f"Goal: Win with {x} Unique Characters"
         if self.options.goal_type == GoalType.option_total_wins:
             x = self.options.total_wins_to_win.value
-            return f"Goal: Win {x} Total Matches"
+            y = self.options.primordial_fragments_to_unlock_final.value
+            return f"Goal: Win {x} Total Matches and Collect {y} Primordial Fragments "
         if self.options.goal_type == GoalType.option_win_with_character:
             x = self.options.primordial_fragments_to_unlock_final.value
             hero = _FINAL_CHARACTER_NAMES[self.options.final_character.value] if self.options.final_character.value < len(_FINAL_CHARACTER_NAMES) else "?"
@@ -161,71 +161,23 @@ class DOTA2World(World):
     def create_items(self) -> None:
         # Add all defined items with copies
         pool = []
-        final_character_name = ""
-        if self.options.goal_type == GoalType.option_win_with_character:
-            idx = self.options.final_character.value
-            if idx < len(_FINAL_CHARACTER_NAMES):
-                final_character_name = _FINAL_CHARACTER_NAMES[idx]
-        unlock_final_item = f"Unlock {final_character_name}" if final_character_name else ""
+    
         for d in self._item_defs:
-            if unlock_final_item and d.name == unlock_final_item:
-                continue  # Do not add Unlock FinalCharacter to pool; player gets it when they reach X Spirits
             for _ in range(d.copies):
                 pool.append(self.create_item(d.name))
 
-        # Pad pool so total items = (locations - 1): Goal gets a locked Victory in set_rules, so it doesn't take from the pool.
+        # Pad pool so total items = locations
         loc_count = len(self.multiworld.get_locations(self.player))
-        fill_count = loc_count - 1
-        if len(pool) < fill_count:
-            pool += [self.create_item(FILLER_ITEM_NAME) for _ in range(fill_count - len(pool))]
+        if len(pool) < loc_count:
+            pool += [self.create_item(FILLER_ITEM_NAME) for _ in range(loc_count - len(pool))]
 
         self.multiworld.itempool += pool
 
     def set_rules(self) -> None:
         set_dota_rules(self)
-
-        goal_loc = self.multiworld.get_location("Goal", self.player)
-        goal_loc.place_locked_item(self.create_item(VICTORY_ITEM_NAME))
-
-        if self.options.goal_type == GoalType.option_primordial_fragments:
-            # MacGuffin win: collect X fragments. Allow Victory OR Spirits so the filler sees a reachable win (Victory at Goal).
-            primordial_fragments_required = self.options.primordial_fragments_to_win.value
-        
-            self.multiworld.completion_condition[self.player] = (
-                lambda state, p=self.player, req=primordial_fragments_required: (
-                    state.has(VICTORY_ITEM_NAME, p) or state.has(FILLER_ITEM_NAME, p) >= req
-                )
-            )
-        else:
-            self.multiworld.completion_condition[self.player] = (
-                lambda state: state.has(VICTORY_ITEM_NAME, self.player)
-            )
     
 
-    # origin_region_name = "Overworld"
-
-    # def create_regions(self) -> None:
-    #     regions.create_and_connect_regions(self)
-    #     locations.create_all_locations(self)
-
-    # def set_rules(self) -> None:
-    #     rules.set_all_rules(self)
-
-    # def create_items(self) -> None:
-    #     items.create_all_items(self)
-
-    # def create_item(self, name: str) -> items.DOTA2Item:
-    #     return items.create_item_with_correct_classification(self, name)
-
-    # def get_filler_item_name(self) -> str:
-    #     return items.get_random_filler_item_name(self)
-
-    # def fill_slot_data(self) -> Mapping[str, Any]:
-    #     # If you need access to the player's chosen options on the client side, there is a helper for that.
-    #     return self.options.as_dict(
-    #         "hard_mode", "hammer", "extra_starting_chest", "confetti_explosiveness", "player_sprite"
-    #     )
-
+   
 def _launch_dota2_client(*args: str) -> None:
     from worlds import LauncherComponents
     from .Client import run_dota2_client

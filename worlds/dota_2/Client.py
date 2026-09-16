@@ -8,7 +8,8 @@ from pathlib import Path
 from typing import Optional, Any
 from datetime import datetime
 
-from .dota_api import parse_most_recent_match_data
+from .dota_api import parse_most_recent_match_data, DotaMatchData
+from .hero import Hero, get_all_heroes
 
 from CommonClient import CommonContext, gui_enabled, server_loop, console_loop, ClientCommandProcessor
 
@@ -28,8 +29,10 @@ class Dota2CommandProcessor(ClientCommandProcessor):
 
     def _cmd_parse_recent_match(self) -> None:
         """try to parse the most recent match completed"""
-        self.ctx.output("DEBUG: /parse_recent_match command received")
         asyncio.create_task(self.ctx.cmd_parse_recent_match_data())
+
+    def _cmd_heroes(self) -> None:
+        self.ctx.get_unlocked_heros()
 
 try:
     from Utils import async_start
@@ -55,14 +58,20 @@ class Dota2Save:
 
     Primordial_fragments_total: int = 0
     wins_total: int = 0
+    starting_hero_pool: list[Hero] = []
+    hero_groups: list[list[Hero]] = []
+    heroes_unlocked: list[Hero]
+    all_heroes: list[Hero] = get_all_heroes()
     
     # Unique heroes we've won with (authoritative for goal; not derived from server state)
-    unique_heroes_won: list[str] = None
+    unique_heroes_won: list[Hero] = None
     
     # Anti-duplicate
     submitted_match_ids: list[str] = None
 
     most_recent_game_time: int = 0
+
+    last_valid_match_id: int = 0
 
     def __post_init__(self) -> None:
         if self.submitted_match_ids is None:
@@ -169,23 +178,21 @@ async def _check_goal_and_send_if_met(
     slot_data = getattr(ctx, "slot_data", None) or {}
     goal_type, unique_req, total_wins_req, fragments_req, fragments_unlock_req, final_character = _get_goal_options(slot_data)
     goal_met = False
-    if goal_type == GOAL_UNIQUE_CHARACTERS and len(ctx.save.unique_heroes_won) >= unique_req:
-        goal_met = True
-    elif goal_type == GOAL_TOTAL_WINS and wins_after >= total_wins_req:
-        goal_met = True
-    elif goal_type == GOAL_PRIMORDIAL_FRAGMENTS:
-        if _count_fragments_received(ctx) >= fragments_req:
+    # if goal_type == GOAL_UNIQUE_CHARACTERS and len(ctx.save.unique_heroes_won) >= unique_req:
+    #     goal_met = True
+    if goal_type == GOAL_TOTAL_WINS:
+        if( wins_after >= total_wins_req and _count_fragments_received(ctx) >= fragments_req):
             goal_met = True
-    elif goal_type == GOAL_WIN_WITH_CHARACTER and final_character and hero_name_this_win is not None:
-        if _count_fragments_received(ctx) >= fragments_unlock_req and hero_name_this_win == final_character:
-            goal_met = True
+    # elif goal_type == GOAL_PRIMORDIAL_FRAGMENTS:
+    #     if _count_fragments_received(ctx) >= fragments_req:
+    #         goal_met = True
+    # elif goal_type == GOAL_WIN_WITH_CHARACTER and final_character and hero_name_this_win is not None:
+    #     if _count_fragments_received(ctx) >= fragments_unlock_req and hero_name_this_win == final_character:
+    #         goal_met = True
     if goal_met and ClientStatus is not None:
-        goal_loc_id = location_name_to_id.get("Goal")
-        if goal_loc_id is not None and goal_loc_id in missing:
-            await ctx.check_locations([goal_loc_id])
-            ctx.output("Goal completed! You have met the win condition.")
-            ctx.finished_game = True
-            await ctx.send_msgs([{"cmd": "StatusUpdate", "status": ClientStatus.CLIENT_GOAL}])
+        ctx.finished_game = True
+        ctx.output("Goal completed! You have met the win condition.")  
+        await ctx.send_msgs([{"cmd": "StatusUpdate", "status": ClientStatus.CLIENT_GOAL}])
 
 
 
@@ -344,8 +351,9 @@ class Dota2Context(CommonContext):
             self.output(f"Progress: {current} / {unique_req} unique character(s) won with.")
         elif goal_type == GOAL_TOTAL_WINS:
             current = self.save.wins_total
-            self.output(f"Goal: Win {total_wins_req} match(es).")
-            self.output(f"Progress: {current} / {total_wins_req} win(s).")
+            fragments_current = _count_fragments_received(self)
+            self.output(f"Goal: Win {total_wins_req} match(es), Collect {fragment_unlock_req} Primordial Fragments.")
+            self.output(f"Progress: {current} / {total_wins_req} win(s), {fragments_current} / {fragment_unlock_req} win(s)")
         elif goal_type == GOAL_WIN_WITH_CHARACTER and final_character:
             fragments_current = _count_fragments_received(self)
             self.output(f"Goal: Collect {fragment_unlock_req} fragments to unlock your final character, then win one match with them.")
@@ -372,10 +380,143 @@ class Dota2Context(CommonContext):
             self.output("Not connected. Connect to an Archipelago server to see your goal.")
             return
         self.ensure_seed_save_loaded()
-        self.output(f"DEBUG: attemnpting parse method")
-        match_data = await parse_most_recent_match_data(int(self.save.steamid))
-        match_id = match_data.match_id
+        if (not self.save.steamid):
+            self.output("No Steam ID set")
+            return
 
+        match_data = await parse_most_recent_match_data(int(self.save.steamid))
+
+        if match_data is None:
+            self.output("No recent match found.")
+            return
+
+        await self.check_dota_goals_and_locations(self, match_data)
+
+    def get_unlocked_hero_by_id(self, hero_id: int) -> Optional[Hero]:
+        for hero in self.save.heroes_unlocked:
+            if hero.id == hero_id:
+                return hero
+
+        return None
+
+    def get_unlocked_heros(self) -> None:
+        for hero in self.save.heroes_unlocked:
+            self.output(f"{hero.name}")
+
+
+
+    async def check_dota_goals_and_locations(self, match_data:DotaMatchData ) -> None:
+        if(match_data.match_id == self.save.last_valid_match_id):
+            self.output(f"Match {match_data.match_id} already proccessed")
+            return  
+              
+        #first check if played hero is even unlocked
+        hero_id = match_data.hero_id
+        hero = self.get_unlocked_hero_by_id(hero_id)
+        if(hero is None):
+            self.output("Hero not unlocked")
+            return
+
+        #most importantly check if win: do no need to win to send some checks:
+        win = False
+        if(match_data.win == 1):
+            self.save.wins_total += 1
+            win = True
+
+        checks = []
+        #hero win checks
+        if(hero and win):
+
+            if (hero in self.save.starting_hero_pool):
+                checks.append("Win with hero from starting pool")
+            for i, group in enumerate(self.save.hero_groups, start=1):
+                if(hero in group):
+                    checks.append(f"Win with Hero from Group {i}")
+            #check hero primary attribute
+            if(hero.primary_attr == "all"):
+                checks.append("Win as a Universal Hero")
+            if(hero.primary_attr == "int"):
+                checks.append("Win as a Intelligence Hero")
+            if(hero.primary_attr == "str"):
+                checks.append("Win as a Strength Hero")
+            if(hero.primary_attr == "agi"):
+                checks.append("Win as a Agility Hero")
+            #check hero attack type
+            if(hero.attack_type == "Melee"):
+                checks.append("Win as a Melee Hero")
+            if(hero.attack_type == "Ranged"):
+                checks.append("Win as a Ranged Hero")
+            #check Hero leg count
+            if(hero.legs == 0):
+                checks.append("Win as a Hero with 0 Legs")
+            if(hero.legs == 2):
+                checks.append("Win as a Hero with 2 Legs")
+            if(hero.legs >= 4):
+                checks.append("Win as a Hero with 4+ Legs")
+
+            #check if win with carry or support. If both: default to carry
+            if("Carry" in hero.roles):
+                checks.append("Win as a Carry Hero")
+            elif("Support" in hero.roles):
+                checks.append("Win as a Support Hero")                
+
+        #all other game stat and buy checks
+        dewards = match_data.dewards
+        kills = match_data.kills
+        assists = match_data.assists
+        last_hits = match_data.last_hits
+        denies = match_data.denies
+
+        KILL_THRESHOLDS = [1, 5, 10]
+        DEWARD_THRESHOLDS = [1, 5, 10]
+        ASSIST_THRESHOLDS = [5, 10, 20]
+        LASTHIT_THRESHOLDS = [75, 125, 175]
+        DENIES_THRESHOLDS = [8, 16, 32]
+
+        for threshold in KILL_THRESHOLDS:
+            if kills >= threshold:
+                checks.append(f"Get {threshold} Kill(s)")
+        for threshold in ASSIST_THRESHOLDS:
+            if assists >= threshold:
+                checks.append(f"Get {threshold} Assists")
+        for threshold in DEWARD_THRESHOLDS:
+            if dewards >= threshold:
+                checks.append(f"Get {threshold} Deward(s)")
+        for threshold in LASTHIT_THRESHOLDS:
+            if last_hits >= threshold:
+                checks.append(f"Get {threshold} Last Hits")
+        for threshold in DENIES_THRESHOLDS:
+            if denies >= threshold:
+                checks.append(f"Get {threshold} Denies")        
+
+        game_locations = self.location_names[self.game]
+
+        location_name_to_id = {
+            name: location_id
+            for location_id, name in game_locations.items()
+        }
+
+        valid_location_ids = []
+        for check in checks:
+            location_id = location_name_to_id.get(check)
+
+            if location_id is None:
+                continue
+
+            # Don't send a location we've already checked
+            if location_id not in self.missing_locations:
+                continue
+
+            valid_location_ids.append(location_id)
+
+        if valid_location_ids:
+            await self.check_locations(valid_location_ids)
+
+        self.save.last_valid_match_id = match_data.match_id
+
+        await _check_goal_and_send_if_met(self)
+
+        
 
 async def _main() -> None:
     ctx = Dota2Context()

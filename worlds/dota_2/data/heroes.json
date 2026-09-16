@@ -174,7 +174,8 @@
         "Initiator",
         "Disabler",
         "Escape",
-        "Nuker"
+        "Nuker",
+        "Carry"
       ],
       "legs": 2
     },
@@ -185,6 +186,8 @@
       "primary_attr": "str",
       "attack_type": "Melee",
       "roles": [
+        "Carry",
+        "Support",
         "Disabler",
         "Initiator",
         "Durable",
@@ -215,7 +218,7 @@
       "roles": [
         "Initiator",
         "Disabler",
-        "Support",
+        "Carry",
         "Nuker",
         "Escape"
       ],
@@ -305,7 +308,8 @@
       "attack_type": "Ranged",
       "roles": [
         "Nuker",
-        "Carry"
+        "Carry",
+        "Support"
       ],
       "legs": 2
     },
@@ -317,7 +321,6 @@
       "attack_type": "Melee",
       "roles": [
         "Carry",
-        "Support",
         "Disabler",
         "Initiator",
         "Durable",
@@ -445,7 +448,9 @@
       "roles": [
         "Disabler",
         "Initiator",
-        "Pusher"
+        "Pusher",
+        "Carry",
+        "Support"
       ],
       "legs": 0
     },
@@ -511,7 +516,8 @@
         "Initiator",
         "Disabler",
         "Durable",
-        "Nuker"
+        "Nuker",
+        "Carry"
       ],
       "legs": 2
     },
@@ -607,7 +613,8 @@
       "attack_type": "Ranged",
       "roles": [
         "Nuker",
-        "Pusher"
+        "Pusher",
+        "Support"
       ],
       "legs": 2
     },
@@ -689,7 +696,8 @@
         "Initiator",
         "Disabler",
         "Durable",
-        "Nuker"
+        "Nuker",
+        "Support"
       ],
       "legs": 2
     },
@@ -716,6 +724,7 @@
       "attack_type": "Ranged",
       "roles": [
         "Carry",
+        "Support",
         "Pusher",
         "Escape",
         "Nuker"
@@ -744,6 +753,7 @@
       "attack_type": "Melee",
       "roles": [
         "Initiator",
+        "Carry",
         "Escape",
         "Disabler"
       ],
@@ -839,7 +849,8 @@
       "attack_type": "Melee",
       "roles": [
         "Escape",
-        "Nuker"
+        "Nuker",
+        "Support"
       ],
       "legs": 2
     },
@@ -878,7 +889,8 @@
       "roles": [
         "Initiator",
         "Disabler",
-        "Escape"
+        "Escape",
+        "Support"
       ],
       "legs": 2
     },
@@ -955,7 +967,7 @@
       "primary_attr": "str",
       "attack_type": "Melee",
       "roles": [
-        "Carry",
+        "Support",
         "Initiator",
         "Disabler",
         "Durable",
@@ -1203,7 +1215,8 @@
         "Disabler",
         "Nuker",
         "Initiator",
-        "Escape"
+        "Escape",
+        "Support"
       ],
       "legs": 6
     },
@@ -1256,7 +1269,7 @@
       "primary_attr": "all",
       "attack_type": "Ranged",
       "roles": [
-        "Support",
+        "Carry",
         "Nuker",
         "Durable",
         "Disabler",
@@ -1316,7 +1329,8 @@
         "Initiator",
         "Disabler",
         "Nuker",
-        "Escape"
+        "Escape",
+        "Carry"
       ],
       "legs": 4
     },
@@ -1330,7 +1344,9 @@
         "Initiator",
         "Disabler",
         "Nuker",
-        "Escape"
+        "Escape",
+        "Support",
+        "Carry"
       ],
       "legs": 4
     },
@@ -1343,7 +1359,8 @@
       "roles": [
         "Nuker",
         "Durable",
-        "Escape"
+        "Escape",
+        "Carry"
       ],
       "legs": 2
     },
@@ -1370,7 +1387,8 @@
       "roles": [
         "Initiator",
         "Disabler",
-        "Nuker"
+        "Nuker",
+        "Support"
       ],
       "legs": 2
     },
@@ -1410,6 +1428,7 @@
         "Initiator",
         "Disabler",
         "Nuker",
+        "Support",
         "Durable"
       ],
       "legs": 2
@@ -1437,7 +1456,8 @@
       "attack_type": "Ranged",
       "roles": [
         "Nuker",
-        "Disabler"
+        "Disabler",
+        "Support"
       ],
       "legs": 6
     },
@@ -1467,7 +1487,9 @@
         "Escape",
         "Disabler",
         "Initiator",
-        "Durable"
+        "Durable",
+        "Support",
+        "Carry"
       ],
       "legs": 2
     },
@@ -1478,7 +1500,7 @@
       "primary_attr": "str",
       "attack_type": "Melee",
       "roles": [
-        "Support",
+        "Carry",
         "Nuker",
         "Disabler",
         "Durable",
@@ -1718,7 +1740,9 @@
       "roles": [
         "Initiator",
         "Durable",
-        "Disabler"
+        "Disabler",
+        "Support",
+        "Carry"
       ],
       "legs": 2
     },

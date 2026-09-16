@@ -21,64 +21,77 @@ def create_regions_and_locations(world: DOTA2World, location_defs: list[Location
 
     for d in location_defs:
         loc_id = world.location_name_to_id[d.name]
-        main.locations.append(DOTA2Location(player, d.name, loc_id, main))
+        location = DOTA2Location(player, d.name, loc_id, main)
+        if(d.name.startswith("Win with Hero from Group ")):
+            group_number = int(d.name.removeprefix("Win with Hero from Group "))
+            required_unlocks = group_number
+            location.access_rule = lambda state, required=required_unlocks: (
+                state.count("Progressive Group Unlock", player) >= required
+            )
+        elif d.name.startswith("Win as a "):
+            category = d.name.removeprefix("Win as a ").removesuffix(" Hero")
+            location.access_rule = lambda state, category=category: (
+                category_hero_available(world, state, category)
+            )
+    
+        main.locations.append(location)
 
+def category_hero_available(world: DOTA2World, state, category: str) -> bool:
+    player = world.player
+    if any(
+        hero_matches_category(hero, category)
+        for hero in world.starting_hero_pool
+    ):
+        return True
 
-# def create_and_connect_regions(world: DOTA2World) -> None:
-#     create_all_regions(world)
-#     connect_regions(world)
+    unlocks = state.count("Progressive Group Unlock", player)
 
-# def create_all_regions(world: DOTA2World) -> None:
-#     # Creating a region is as simple as calling the constructor of the Region class.
-#     overworld = Region("Overworld", world.player, world.multiworld)
-#     top_left_room = Region("Top Left Room", world.player, world.multiworld)
-#     bottom_right_room = Region("Bottom Right Room", world.player, world.multiworld)
-#     right_room = Region("Right Room", world.player, world.multiworld)
-#     final_boss_room = Region("Final Boss Room", world.player, world.multiworld)
+    for group_number, group in enumerate(world.hero_groups, start=1):
+        if unlocks >= group_number:
+            if any(
+                hero_matches_category(hero, category)
+                for hero in group
+            ):
+                return True
 
-#     # Let's put all these regions in a list.
-#     regions = [overworld, top_left_room, bottom_right_room, right_room, final_boss_room]
+    return False
 
-#     # Some regions may only exist if the player enables certain options.
-#     # In our case, the Hammer locks the top middle chest in its own room if the hammer option is enabled.
-#     if world.options.hammer:
-#         top_middle_room = Region("Top Middle Room", world.player, world.multiworld)
-#         regions.append(top_middle_room)
+def hero_matches_category(hero, category: str) -> bool:
+    category = category.lower()
 
-#     # We now need to add these regions to multiworld.regions so that AP knows about their existence.
-#     world.multiworld.regions += regions
+    if category == "melee":
+        return hero.attack_type == "Melee"
 
-# def connect_regions(world: DOTA2World) -> None:
-#     # We have regions now, but still need to connect them to each other.
-#     # But wait, we no longer have access to the region variables we created in create_all_regions()!
-#     # Luckily, once you've submitted your regions to multiworld.regions,
-#     # you can get them at any time using world.get_region(...).
-#     overworld = world.get_region("Overworld")
-#     top_left_room = world.get_region("Top Left Room")
-#     bottom_right_room = world.get_region("Bottom Right Room")
-#     right_room = world.get_region("Right Room")
-#     final_boss_room = world.get_region("Final Boss Room")
+    if category == "ranged":
+        return hero.attack_type == "Ranged"
 
-#     # Okay, now we can get connecting. For this, we need to create Entrances.
-#     # Entrances are inherently one-way, but crucially, AP assumes you can always return to the origin region.
-#     # One way to create an Entrance is by calling the Entrance constructor.
-#     overworld_to_bottom_right_room = Entrance(world.player, "Overworld to Bottom Right Room", parent=overworld)
-#     overworld.exits.append(overworld_to_bottom_right_room)
+    if category == "strength":
+        return hero.primary_attr == "str"
 
-#     # You can then connect the Entrance to the target region.
-#     overworld_to_bottom_right_room.connect(bottom_right_room)
+    if category == "agility":
+        return hero.primary_attr == "agi"
 
-#     # An even easier way is to use the region.connect helper.
-#     overworld.connect(right_room, "Overworld to Right Room")
-#     right_room.connect(final_boss_room, "Right Room to Final Boss Room")
+    if category == "intelligence":
+        return hero.primary_attr == "int"
 
-#     # The region.connect helper even allows adding a rule immediately.
-#     # We'll talk more about rule creation in the set_all_rules() function in rules.py.
-#     overworld.connect(top_left_room, "Overworld to Top Left Room", lambda state: state.has("Key", world.player))
+    if category == "universal":
+        return hero.primary_attr == "all"
 
-#     # Some Entrances may only exist if the player enables certain options.
-#     # In our case, the Hammer locks the top middle chest in its own room if the hammer option is enabled.
-#     # In this case, we previously created an extra "Top Middle Room" region that we now need to connect to Overworld.
-#     if world.options.hammer:
-#         top_middle_room = world.get_region("Top Middle Room")
-#         overworld.connect(top_middle_room, "Overworld to Top Middle Room")
+    if category == "carry":
+        return "Carry" in hero.roles
+
+    if category == "support":
+        return "Support" in hero.roles
+    
+    if category == "0 legged":
+        return hero.legs == 0
+
+    
+    if category == "2 legged":
+        return hero.legs == 2
+    
+    if category == "4+ legged":
+        return hero.legs >= 4
+
+    return False
+

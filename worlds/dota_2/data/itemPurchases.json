@@ -34,12 +34,44 @@
       "name": "Bottle"
     },
     {
-      "id": 10,
+      "id": 9,
       "name": "Blood Grenade"
     },
     {
+      "id": 10,
+      "name": "Smoke of Deciet"
+    },
+    {
       "id": 11,
-      "name": "Goal"
+      "name": "Healing Salve"
+    },
+    {
+      "id": 12,
+      "name": "Circlet"
+    },
+    {
+      "id": 13,
+      "name": "Gauntlet of Strength"
+    },
+    {
+      "id": 14,
+      "name": "Wraith Band"
+    },
+    {
+      "id": 15,
+      "name": "Null Tailisman"
+    },
+    {
+      "id": 16,
+      "name": "Power Treads"
+    },
+    {
+      "id": 17,
+      "name": "Arcane Boots"
+    },
+    {
+      "id": 18,
+      "name": "Magic Stick"
     }
     ]
 }
